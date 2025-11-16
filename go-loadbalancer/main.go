@@ -1,6 +1,7 @@
 package main
 
 import(
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"fmt"
@@ -8,18 +9,17 @@ import(
 )
 
 type Server interface{
-
 	Address() string
 	IsAlive() bool
-	Serve(rw http.ResponseWriter, r http.Request)
+	Serve(rw http.ResponseWriter, r *http.Request)
 }
 
 type simpleServer struct {
 	addr string
-	proxy httputil.ReverseProxy
+	proxy *httputil.ReverseProxy
 }
 
-func newSimpleServer(addr  string) simpleServer{
+func newSimpleServer(addr  string) *simpleServer{
 	serverUrl, err := url.Parse(addr)
 	handleErr(err)
 
@@ -35,25 +35,44 @@ type LoadBalancer struct {
 	servers []Server
 }
 
-func NewLoadBalancer(port string,  servers []Server) LoadBalancer {
-	return &LoadBalancer(
+func NewLoadBalancer(port string,  servers []Server) *LoadBalancer {
+	return &LoadBalancer{
 		port: port,
 		roundRobinCount: 0,
 		servers: servers,
-	)
+ }
 }
 
 func handleErr(err error) {
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
-		os.exit(1)
+		os.Exit(1)
 	}
 }
 
+func (s *simpleServer) Address() string{return s.addr}
 
-func(lb LoadBalancer) getNextAvailableServer() Server{}
+func (s *simpleServer) IsAlive() bool { return true}
 
-func (lb LoadBalancer) serverProxy(rw. http.ResponseWriter, r http.Request){}
+func (s *simpleServer) Serve(rw http.ResponseWriter, req *http.Request) {
+	s.proxy.ServeHTTP(rw, req)
+}
+
+func(lb *LoadBalancer) getNextAvailableServer() Server{
+	server := lb.servers[lb.roundRobinCount%len(lb.servers)]
+	for !server.IsAlive(){
+		lb.roundRobinCount++
+		server = lb.servers[lb.roundRobinCount%len(lb.servers)]
+	}
+	lb.roundRobinCount++
+	return server
+}
+
+func (lb *LoadBalancer) serveProxy(rw http.ResponseWriter, req *http.Request){
+	targetServer := lb.getNextAvailableServer()
+	fmt.Printf("forwrding request to address %q\n", targetServer.Address())
+	targetServer.Serve(rw, req)
+}
 
 func main() {
 	servers:= []Server{
@@ -62,4 +81,11 @@ func main() {
 		newSimpleServer("http://www.duckduckgo.com"),
 	}
 	lb := NewLoadBalancer("8000", servers)
+	handleRedirect := func(rw http.ResponseWriter, req *http.Request){
+		lb.serveProxy(rw, req)
+	}
+	http.HandleFunc("/", handleRedirect)
+
+	fmt.Printf("serving requests at `localhost: %s`\n", lb.port)
+	http.ListenAndServe(":"+lb.port, nil)
 }
