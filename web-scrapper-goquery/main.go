@@ -15,7 +15,7 @@ func main(){
 		log.Println(err)
 	}
 	fmt.Println("Blog Titles:")
-	fmt.Printf(blogTitles)
+	fmt.Println(blogTitles)
 }
 
 func GetLatestBlogTitles(url string)(string, error){
