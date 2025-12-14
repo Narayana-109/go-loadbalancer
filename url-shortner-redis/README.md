@@ -1,5 +1,7 @@
 # GO-URL-SHORTNER-WITH-REDIS-AND-GOFIBER
 
+#### Execute with docker - docker compose up -d
+
 Pass the long url like {"url":"https://go.dev/play/p/ket9OEcElO_M"}
 Short url will be saved in redis. - localhost:3000/82252e
 Use the short url to be redirected to the actual url - http://localhost:3000/82252e
